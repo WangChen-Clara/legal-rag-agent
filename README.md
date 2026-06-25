@@ -1,3 +1,136 @@
+# Legal RAG Agent（中文说明）
+
+这是一个面向法规问答场景的 Legal RAG Agent 原型项目。项目基于固定日期的
+eCFR Title 12 法规快照，把法规文本整理成可检索、可追溯、可评测的结构化语料。
+
+项目目标不是做一个普通聊天机器人，而是验证法律 RAG 中更关键的能力：
+
+- 回答必须能追溯到具体法规条款；
+- 检索结果要包含法规编号、版本日期和来源链接；
+- 工具调用过程要有边界，避免无限循环；
+- 项目结果要能通过测试和评测报告解释。
+
+## 项目做什么
+
+用户提出法规问题后，系统会：
+
+```text
+用户问题
+-> search_regulations 检索相关法规证据
+-> 可选 fetch_section 获取完整法规条款
+-> 输出带 citation 的回答
+```
+
+当前 demo 是确定性、模板化的 Agent Harness，主要用于展示检索、工具调用、证据处理
+和引用链路。它暂时不调用远程 LLM，也不声称提供真实法律建议。
+
+## 数据快照
+
+- 数据源：eCFR Title 12
+- 固定版本日期：`2025-09-01`
+- 语料结构：官方 section 父文档 + 结构化 chunks
+- 引用方式：固定快照 URL，例如
+  `https://www.ecfr.gov/on/2025-09-01/title-12/section-217.134`
+
+这个项目不是实时法律检索系统，不能代表当前最新法律。
+
+## 当前已经实现
+
+- 官方 Title 12 规范语料构建
+- 结构化 chunk 构建
+- BGE Large + FAISS 检索索引
+- citation-aware retrieval：
+  - 显式 CFR 条款优先召回，例如 `12 CFR 211.31`
+  - 从显式条款出发做一跳交叉引用扩展
+- 只读工具：
+  - `search_regulations`
+  - `fetch_section`
+- 带最大步骤限制的轻量 deterministic Agent Harness
+- Development-only 检索评测、工具验证和 Agent 验证报告
+- Markdown demo，展示 Agent 步骤、证据、完整条款和 citations
+
+## 运行 Demo
+
+运行 deterministic Agent demo：
+
+```powershell
+cd path\to\rag_law_clean
+$env:PYTHONPATH = "$PWD\src"
+python scripts\demo_title12_agent.py --device cuda
+```
+
+生成的报告位置：
+
+```text
+reports/title12_agent_demo.md
+```
+
+demo 包含两个 Development 示例：
+
+- q001：对 `12 CFR 211.31` 的显式 citation 检索；
+- q018：对 `12 CFR 217.135` 的显式 citation 检索，并扩展到交叉引用条款
+  `12 CFR 217.134`。
+
+demo 不会调用远程 LLM。
+
+## 验证方式
+
+Agent loop 验证：
+
+```powershell
+python scripts\validate_title12_agent.py --device cuda
+```
+
+工具验证：
+
+```powershell
+python scripts\validate_title12_tools.py --device cuda
+```
+
+离线测试：
+
+```powershell
+$env:PYTHONPATH = "$PWD\src"
+python -m pytest -q -p no:cacheprovider
+```
+
+最近一次本地结果：`112 passed`。
+
+## 本地大文件说明
+
+大型生成资产不会放进公开仓库，包括：
+
+- 本地 Python 环境：`.venv/`、`.conda-gpu/`
+- FAISS 索引：`data/indexes/`
+- 原始 eCFR XML：`data/raw/`
+- 生成的规范语料和 chunks：`data/canonical/`
+- 对齐和历史恢复数据：`data/alignment/`、`data/recovered/`
+- 评测构造 JSON：`data/eval/*.json`
+- 大型 JSON 报告：`reports/*.json`
+
+公开仓库主要保留源码、测试、轻量文档和精选 Markdown demo 报告。
+
+## 安全说明
+
+远程 LLM 密钥必须来自环境变量：
+
+```powershell
+$env:RAG_LAW_API_KEY = "your-key"
+```
+
+不要把真实 API Key 写入源码、YAML、Markdown、Dockerfile、notebook 或日志。
+当前 deterministic Agent demo 不需要 API Key。
+
+## 当前限制
+
+- demo 答案是模板化结果，不是最终自然语言法律答案；
+- Agent loop 是确定性流程，还没有使用 LLM 选择工具；
+- Holdout retrieval 在策略设计阶段刻意没有查看；
+- citation verification 和 version comparison 还没有实现；
+- 项目绑定固定 `2025-09-01` 快照，不能说成当前最新法律。
+
+## English Version
+
 # Legal RAG Agent
 
 A CLI-first / Python API prototype for a citation-aware Legal RAG Agent over a
