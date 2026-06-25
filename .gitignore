@@ -9,6 +9,7 @@ pytest-cache-files-*/
 .tmp/
 .tmp_admin/
 outputs/
+TASKS.md
 
 # Large local assets generated from the fixed eCFR snapshot.
 models/
