@@ -1,0 +1,20 @@
+llm:
+  base_url: "https://api.example.com/v1"
+  model_name: "your-model-name"
+  api_key_env: "RAG_LAW_API_KEY"
+  temperature: 0.2
+  top_p: 0.95
+  timeout_seconds: 60
+
+embedding:
+  model_path: 'models\bge-large-en-v1.5'
+  device: "cpu"
+
+retrieval:
+  index_path: 'data\indexes\title12_bge_large_2025-09-01\vector_db.index'
+  metadata_path: 'data\indexes\title12_bge_large_2025-09-01\metadata.npy'
+  top_k: 7
+  normalize_query: true
+
+output:
+  directory: "outputs"

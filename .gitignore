@@ -1,0 +1,32 @@
+.env
+.venv/
+.conda-gpu/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+pytest-cache-files-*/
+.runtime_cache/
+.tmp/
+.tmp_admin/
+outputs/
+
+# Large local assets generated from the fixed eCFR snapshot.
+models/
+data/indexes/
+data/legacy_indexes/
+data/raw/
+data/canonical/
+data/alignment/
+data/recovered/
+data/index_manifest.json
+data/eval/*.json
+*.index
+*.npy
+
+# Keep curated Markdown reports and demos, but not bulky or process-heavy outputs.
+reports/*.json
+reports/*.md
+!reports/title12_agent_demo.md
+!reports/title12_agent_validation.md
+!reports/title12_tools_validation.md
+!reports/title12_context_retrieval_eval.md
