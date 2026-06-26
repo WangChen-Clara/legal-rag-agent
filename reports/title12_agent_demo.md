@@ -24,6 +24,10 @@ is intended to demonstrate control flow, tool use, and citation plumbing.
 | 2 | fetch_section | completed | section=211.31<br>source_url=https://www.ecfr.gov/on/2025-09-01/title-12/section-211.31<br>safe_for_citation=True |
 | 3 | final_answer | completed | citations=12 CFR 211.31 (2025-09-01) |
 
+### Unique Sections Summary
+
+211.31 (explicit_citation), 211.10 (semantic), 211.8 (semantic), 211.33 (semantic), 211.9 (semantic), 211.32 (semantic)
+
 ### Retrieved Evidence
 
 | Rank | Section | Source | Version | URL | Preview |
@@ -46,6 +50,12 @@ Relevant evidence was found in 12 CFR 211.31 (2025-09-01). Use the cited fixed-s
 
 **Citations:** 12 CFR 211.31 (2025-09-01)
 
+### Curated Answer Preview
+
+This preview is curated for demonstration only; the current agent answer remains template-based.
+
+The retrieved section indicates that the subpart applies to eligible investors under 12 CFR 211.31. The demo keeps the generated agent answer template-based, but this preview shows how the cited section can support a direct natural-language response.
+
 ## title12-dev-q018
 
 **Question:** For double default treatment under 12 CFR 217.135, what kind of exposure may be hedged and what related section defines the eligible guarantee or credit derivative treatment?
@@ -58,6 +68,10 @@ Relevant evidence was found in 12 CFR 211.31 (2025-09-01). Use the cited fixed-s
 | 2 | fetch_section | completed | section=217.135<br>source_url=https://www.ecfr.gov/on/2025-09-01/title-12/section-217.135<br>safe_for_citation=True |
 | 3 | fetch_section | completed | section=217.134<br>source_url=https://www.ecfr.gov/on/2025-09-01/title-12/section-217.134<br>safe_for_citation=True |
 | 4 | final_answer | completed | citations=12 CFR 217.135 (2025-09-01), 12 CFR 217.134 (2025-09-01) |
+
+### Unique Sections Summary
+
+217.135 (explicit_citation), 217.134 (cross_reference), 217.142 (cross_reference), 217.135 (semantic), 324.135 (semantic), 3.135 (semantic)
 
 ### Retrieved Evidence
 
@@ -81,4 +95,10 @@ Relevant evidence was found in 12 CFR 211.31 (2025-09-01). Use the cited fixed-s
 Relevant evidence was found in 12 CFR 217.135 (2025-09-01), 12 CFR 217.134 (2025-09-01). Use the cited fixed-snapshot sections to answer the question.
 
 **Citations:** 12 CFR 217.135 (2025-09-01), 12 CFR 217.134 (2025-09-01)
+
+### Curated Answer Preview
+
+This preview is curated for demonstration only; the current agent answer remains template-based.
+
+For double default treatment, the cited evidence points to a hedged wholesale exposure under 12 CFR 217.135 and the related guarantee or credit derivative treatment in 12 CFR 217.134. This preview is curated for demonstration; the agent's own answer remains template-based.
 

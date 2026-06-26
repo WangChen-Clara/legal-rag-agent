@@ -1,6 +1,7 @@
 ﻿from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -25,6 +26,20 @@ DEMO_QUESTIONS = [
         ),
     },
 ]
+CURATED_ANSWER_PREVIEWS = {
+    "title12-dev-q001": (
+        "The retrieved section indicates that the subpart applies to eligible "
+        "investors under 12 CFR 211.31. The demo keeps the generated agent answer "
+        "template-based, but this preview shows how the cited section can support a "
+        "direct natural-language response."
+    ),
+    "title12-dev-q018": (
+        "For double default treatment, the cited evidence points to a hedged "
+        "wholesale exposure under 12 CFR 217.135 and the related guarantee or "
+        "credit derivative treatment in 12 CFR 217.134. This preview is curated for "
+        "demonstration; the agent's own answer remains template-based."
+    ),
+}
 
 
 def evidence_rows(state: AgentState, limit: int = 5) -> str:
@@ -55,12 +70,28 @@ def step_rows(state: AgentState) -> str:
     )
 
 
+def unique_section_summary(state: AgentState) -> str:
+    sections = []
+    for item in state.evidence:
+        if not item.section:
+            continue
+        label = f"{item.section} ({item.retrieval_source})"
+        if label in sections:
+            continue
+        sections.append(label)
+    return ", ".join(sections[:8]) if sections else "-"
+
+
 def render_demo_report(payload: dict[str, Any]) -> str:
     sections = []
     for item in payload["runs"]:
         state = item["state"]
         final_answer = state.final_answer
         citations = ", ".join(final_answer.citations) if final_answer else "-"
+        curated_preview = CURATED_ANSWER_PREVIEWS.get(
+            item["question_id"],
+            "No curated preview is available for this question.",
+        )
         sections.append(
             f"""## {item['question_id']}
 
@@ -71,6 +102,10 @@ def render_demo_report(payload: dict[str, Any]) -> str:
 | Step | Action | Status | Detail |
 |---:|---|---|---|
 {step_rows(state)}
+
+### Unique Sections Summary
+
+{unique_section_summary(state)}
 
 ### Retrieved Evidence
 
@@ -89,6 +124,12 @@ def render_demo_report(payload: dict[str, Any]) -> str:
 {final_answer.answer if final_answer else 'No final answer.'}
 
 **Citations:** {citations}
+
+### Curated Answer Preview
+
+This preview is curated for demonstration only; the current agent answer remains template-based.
+
+{curated_preview}
 """
         )
     return f"""# Title 12 Legal RAG Agent Demo
@@ -112,7 +153,27 @@ is intended to demonstrate control flow, tool use, and citation plumbing.
 def write_report(path: Path, report: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(report, encoding="utf-8", newline="\n")
+    with temporary.open("w", encoding="utf-8", newline="\n") as file:
+        file.write(report)
+    os.replace(temporary, path)
+
+
+def write_trace(path: Path, payload: dict[str, Any]) -> None:
+    trace_payload = {
+        "schema": "legal-rag-agent-demo-traces-v1",
+        "runs": [
+            {
+                "question_id": item["question_id"],
+                "trace": item["state"].to_trace_dict(),
+            }
+            for item in payload["runs"]
+        ],
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    with temporary.open("w", encoding="utf-8", newline="\n") as file:
+        json.dump(trace_payload, file, ensure_ascii=False, indent=2)
+        file.write("\n")
     os.replace(temporary, path)
 
 
@@ -164,6 +225,11 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=root / "reports" / "title12_agent_demo.md",
     )
+    parser.add_argument(
+        "--trace-output",
+        type=Path,
+        default=root / "reports" / "title12_agent_demo_trace.json",
+    )
     return parser.parse_args()
 
 
@@ -195,7 +261,9 @@ def main() -> None:
     }
     report = render_demo_report(payload)
     write_report(args.report, report)
+    write_trace(args.trace_output, payload)
     print(f"Wrote {args.report}")
+    print(f"Wrote {args.trace_output}")
 
 
 if __name__ == "__main__":

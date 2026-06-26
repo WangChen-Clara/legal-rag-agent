@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from rag_law.agent import AgentState, AgentStep, FinalAnswer
 from rag_law.tools import RegulationEvidence, SectionRecord
-from scripts.demo_title12_agent import render_demo_report, write_report
+from scripts.demo_title12_agent import (
+    render_demo_report,
+    unique_section_summary,
+    write_report,
+    write_trace,
+)
 
 TEST_TMP = Path(".tmp") / "test_demo_title12_agent"
 
@@ -67,9 +73,32 @@ def test_render_demo_report_shows_agent_flow() -> None:
     assert "# Title 12 Legal RAG Agent Demo" in report
     assert "search_regulations" in report
     assert "fetch_section" in report
+    assert "### Unique Sections Summary" in report
+    assert "211.31 (explicit_citation)" in report
+    assert "### Curated Answer Preview" in report
+    assert "current agent answer remains template-based" in report
     assert "211.31 | explicit_citation" in report
     assert "12 CFR 211.31 (2025-09-01)" in report
     assert "LLM called: no" in report
+
+
+def test_unique_section_summary_deduplicates_sections_by_source() -> None:
+    state = demo_state()
+    state.evidence.append(
+        RegulationEvidence(
+            rank=2,
+            section="211.31",
+            title=12,
+            part="211",
+            version_date="2025-09-01",
+            source_url="https://example.test/211.31",
+            retrieval_source="explicit_citation",
+            score=0.1,
+            text="Duplicate section evidence.",
+        )
+    )
+
+    assert unique_section_summary(state) == "211.31 (explicit_citation)"
 
 
 def test_write_report_writes_markdown() -> None:
@@ -79,3 +108,26 @@ def test_write_report_writes_markdown() -> None:
     write_report(report_path, "# Demo\n")
 
     assert report_path.read_text(encoding="utf-8") == "# Demo\n"
+
+
+def test_write_trace_writes_structured_json() -> None:
+    TEST_TMP.mkdir(parents=True, exist_ok=True)
+    trace_path = TEST_TMP / "trace.json"
+
+    write_trace(
+        trace_path,
+        {
+            "runs": [
+                {
+                    "question_id": "q1",
+                    "state": demo_state(),
+                }
+            ]
+        },
+    )
+
+    payload = json.loads(trace_path.read_text(encoding="utf-8"))
+    assert payload["schema"] == "legal-rag-agent-demo-traces-v1"
+    assert payload["runs"][0]["question_id"] == "q1"
+    assert payload["runs"][0]["trace"]["schema"] == "legal-rag-agent-trace-v1"
+    assert payload["runs"][0]["trace"]["termination_reason"] == "completed"

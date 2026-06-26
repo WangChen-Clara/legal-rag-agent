@@ -54,8 +54,15 @@ eCFR Title 12 法规快照，把法规文本整理成可检索、可追溯、可
 运行 deterministic Agent demo：
 
 ```powershell
-cd path\to\rag_law_clean
+cd legal-rag-agent
+pip install -e .[dev]
 $env:PYTHONPATH = "$PWD\src"
+python scripts\demo_title12_agent.py --device cpu
+```
+
+如果本机已有 CUDA / PyTorch GPU 环境，可以改用：
+
+```powershell
 python scripts\demo_title12_agent.py --device cuda
 ```
 
@@ -63,6 +70,7 @@ python scripts\demo_title12_agent.py --device cuda
 
 ```text
 reports/title12_agent_demo.md
+reports/title12_agent_demo_trace.json
 ```
 
 demo 包含两个 Development 示例：
@@ -73,18 +81,21 @@ demo 包含两个 Development 示例：
 
 demo 不会调用远程 LLM。
 
+注意：公开仓库不包含本地生成的大型运行资产，例如 embedding model、FAISS index
+和 canonical corpus。仓库中的精选报告由这些本地资产生成，用于展示项目结果。
+
 ## 验证方式
 
 Agent loop 验证：
 
 ```powershell
-python scripts\validate_title12_agent.py --device cuda
+python scripts\validate_title12_agent.py --device cpu
 ```
 
 工具验证：
 
 ```powershell
-python scripts\validate_title12_tools.py --device cuda
+python scripts\validate_title12_tools.py --device cpu
 ```
 
 离线测试：
@@ -108,7 +119,10 @@ python -m pytest -q -p no:cacheprovider
 - 评测构造 JSON：`data/eval/*.json`
 - 大型 JSON 报告：`reports/*.json`
 
-公开仓库主要保留源码、测试、轻量文档和精选 Markdown demo 报告。
+其中 `reports/title12_agent_demo_trace.json` 是精选结构化 trace 展示文件，可以作为
+Agent 运行过程的可解释性样例；其他大型或过程 JSON 仍然默认忽略。
+
+公开仓库主要保留源码、测试、轻量文档、精选 Markdown demo 报告和精选 trace。
 
 ## 安全说明
 
@@ -179,8 +193,15 @@ This is not a real-time legal research system and is not legal advice.
 Run the deterministic Agent demo:
 
 ```powershell
-cd path\to\rag_law_clean
+cd legal-rag-agent
+pip install -e .[dev]
 $env:PYTHONPATH = "$PWD\src"
+python scripts\demo_title12_agent.py --device cpu
+```
+
+If a CUDA / PyTorch GPU environment is available:
+
+```powershell
 python scripts\demo_title12_agent.py --device cuda
 ```
 
@@ -188,6 +209,7 @@ The rendered report is:
 
 ```text
 reports/title12_agent_demo.md
+reports/title12_agent_demo_trace.json
 ```
 
 It shows two Development examples:
@@ -198,18 +220,22 @@ It shows two Development examples:
 
 No remote LLM is called by the demo.
 
+Note: the public repository does not include large local runtime assets such as
+the embedding model, FAISS index, or canonical corpus. The checked-in reports are
+curated outputs generated from those local assets.
+
 ## Validation
 
 Agent loop validation:
 
 ```powershell
-python scripts\validate_title12_agent.py --device cuda
+python scripts\validate_title12_agent.py --device cpu
 ```
 
 Tool validation:
 
 ```powershell
-python scripts\validate_title12_tools.py --device cuda
+python scripts\validate_title12_tools.py --device cpu
 ```
 
 Offline tests:
@@ -254,6 +280,7 @@ documentation, and curated Markdown demo reports, not generated corpora or index
 - `scripts/validate_title12_agent.py`: real Agent validation on Development examples
 - `scripts/validate_title12_tools.py`: real tool validation
 - `reports/title12_agent_demo.md`: generated demo report
+- `reports/title12_agent_demo_trace.json`: structured Agent execution trace sample
 
 ## Security
 

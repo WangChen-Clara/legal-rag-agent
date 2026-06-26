@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from rag_law.agent import LegalRAGAgent
+from rag_law.agent import TRACE_SCHEMA, LegalRAGAgent
 from rag_law.tools import RegulationEvidence, SearchRegulationsResult, SectionRecord
 
 
@@ -87,26 +87,59 @@ def test_agent_runs_search_fetch_and_final_answer() -> None:
     assert state.final_answer.citations == ["12 CFR 217.135 (2025-09-01)"]
 
 
+def test_agent_default_steps_allow_two_fetches_and_final_answer() -> None:
+    toolset = FakeToolset(
+        [
+            evidence("217.135", retrieval_source="explicit_citation", rank=1),
+            evidence("217.134", retrieval_source="cross_reference", rank=2),
+        ]
+    )
+    agent = LegalRAGAgent(toolset)
+
+    state = agent.run("For double default treatment under 12 CFR 217.135...")
+
+    assert state.terminated_reason == "completed"
+    assert [step.action for step in state.steps] == [
+        "search_regulations",
+        "fetch_section",
+        "fetch_section",
+        "final_answer",
+    ]
+    assert toolset.fetch_calls == ["217.135", "217.134"]
+
+
+def test_agent_state_exports_structured_trace() -> None:
+    toolset = FakeToolset(
+        [evidence("217.135", retrieval_source="explicit_citation", rank=1)]
+    )
+    agent = LegalRAGAgent(toolset, max_steps=3, max_fetch_sections=1)
+
+    state = agent.run("For double default treatment under 12 CFR 217.135...")
+    trace = state.to_trace_dict()
+
+    assert trace["schema"] == TRACE_SCHEMA
+    assert trace["run_id"] == state.run_id
+    assert trace["question"] == "For double default treatment under 12 CFR 217.135..."
+    assert [step["action"] for step in trace["steps"]] == [
+        "search_regulations",
+        "fetch_section",
+        "final_answer",
+    ]
+    assert trace["evidence_summary"][0]["section"] == "217.135"
+    assert trace["fetched_sections"][0]["section"] == "217.135"
+    assert trace["final_answer"]["citations"] == ["12 CFR 217.135 (2025-09-01)"]
+    assert trace["termination_reason"] == "completed"
+
+
 def test_agent_returns_insufficient_when_no_evidence() -> None:
     toolset = FakeToolset([])
-    agent = LegalRAGAgent(toolset, max_steps=3)
+    agent = LegalRAGAgent(toolset)
 
     state = agent.run("unknown question")
 
     assert state.terminated_reason == "insufficient_evidence"
     assert state.final_answer is not None
     assert state.final_answer.insufficient is True
-    assert [step.action for step in state.steps] == ["search_regulations"]
-
-
-def test_agent_enforces_max_steps_before_fetch() -> None:
-    toolset = FakeToolset([evidence("211.31", retrieval_source="explicit_citation")])
-    agent = LegalRAGAgent(toolset, max_steps=1)
-
-    state = agent.run("What does 12 CFR 211.31 apply to?")
-
-    assert state.terminated_reason == "max_steps_exceeded"
-    assert toolset.fetch_calls == []
     assert [step.action for step in state.steps] == ["search_regulations"]
 
 
@@ -135,6 +168,8 @@ def test_agent_rejects_invalid_configuration() -> None:
         LegalRAGAgent(toolset, top_k=0)
     with pytest.raises(ValueError, match="max_fetch_sections"):
         LegalRAGAgent(toolset, max_fetch_sections=-1)
+    with pytest.raises(ValueError, match="max_steps must be at least max_fetch_sections"):
+        LegalRAGAgent(toolset, max_steps=3, max_fetch_sections=2)
 
 
 def test_agent_rejects_empty_question() -> None:

@@ -1,0 +1,364 @@
+{
+  "schema": "legal-rag-agent-demo-traces-v1",
+  "runs": [
+    {
+      "question_id": "title12-dev-q001",
+      "trace": {
+        "schema": "legal-rag-agent-trace-v1",
+        "run_id": "937de82c01084912959a7e7a8571c63c",
+        "question": "What investors do the provisions of 12 CFR 211.31's subpart apply to?",
+        "steps": [
+          {
+            "step_number": 1,
+            "action": "search_regulations",
+            "status": "completed",
+            "detail": {
+              "mode": "citation_aware",
+              "evidence_count": 10,
+              "sections": [
+                "211.31",
+                "211.10",
+                "211.8",
+                "211.10",
+                "211.10",
+                "211.33",
+                "211.10",
+                "211.9",
+                "211.32",
+                "211.9"
+              ]
+            }
+          },
+          {
+            "step_number": 2,
+            "action": "fetch_section",
+            "status": "completed",
+            "detail": {
+              "section": "211.31",
+              "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-211.31",
+              "safe_for_citation": true
+            }
+          },
+          {
+            "step_number": 3,
+            "action": "final_answer",
+            "status": "completed",
+            "detail": {
+              "citations": [
+                "12 CFR 211.31 (2025-09-01)"
+              ]
+            }
+          }
+        ],
+        "evidence_summary": [
+          {
+            "rank": 1,
+            "section": "211.31",
+            "retrieval_source": "explicit_citation",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-211.31",
+            "score": 0.0,
+            "chunk_id": "ecfr:title-12:section-211.31:version-2025-09-01:chunk-0001",
+            "parent_document_id": "ecfr:title-12:section-211.31:version-2025-09-01"
+          },
+          {
+            "rank": 2,
+            "section": "211.10",
+            "retrieval_source": "semantic",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-211.10",
+            "score": 0.754412055015564,
+            "chunk_id": "ecfr:title-12:section-211.10:version-2025-09-01:chunk-0005",
+            "parent_document_id": "ecfr:title-12:section-211.10:version-2025-09-01"
+          },
+          {
+            "rank": 3,
+            "section": "211.8",
+            "retrieval_source": "semantic",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-211.8",
+            "score": 0.7400225400924683,
+            "chunk_id": "ecfr:title-12:section-211.8:version-2025-09-01:chunk-0004",
+            "parent_document_id": "ecfr:title-12:section-211.8:version-2025-09-01"
+          },
+          {
+            "rank": 4,
+            "section": "211.10",
+            "retrieval_source": "semantic",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-211.10",
+            "score": 0.7346803545951843,
+            "chunk_id": "ecfr:title-12:section-211.10:version-2025-09-01:chunk-0004",
+            "parent_document_id": "ecfr:title-12:section-211.10:version-2025-09-01"
+          },
+          {
+            "rank": 5,
+            "section": "211.10",
+            "retrieval_source": "semantic",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-211.10",
+            "score": 0.7229363322257996,
+            "chunk_id": "ecfr:title-12:section-211.10:version-2025-09-01:chunk-0009",
+            "parent_document_id": "ecfr:title-12:section-211.10:version-2025-09-01"
+          },
+          {
+            "rank": 6,
+            "section": "211.33",
+            "retrieval_source": "semantic",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-211.33",
+            "score": 0.7171342372894287,
+            "chunk_id": "ecfr:title-12:section-211.33:version-2025-09-01:chunk-0002",
+            "parent_document_id": "ecfr:title-12:section-211.33:version-2025-09-01"
+          },
+          {
+            "rank": 7,
+            "section": "211.10",
+            "retrieval_source": "semantic",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-211.10",
+            "score": 0.715092658996582,
+            "chunk_id": "ecfr:title-12:section-211.10:version-2025-09-01:chunk-0003",
+            "parent_document_id": "ecfr:title-12:section-211.10:version-2025-09-01"
+          },
+          {
+            "rank": 8,
+            "section": "211.9",
+            "retrieval_source": "semantic",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-211.9",
+            "score": 0.7140950560569763,
+            "chunk_id": "ecfr:title-12:section-211.9:version-2025-09-01:chunk-0007",
+            "parent_document_id": "ecfr:title-12:section-211.9:version-2025-09-01"
+          },
+          {
+            "rank": 9,
+            "section": "211.32",
+            "retrieval_source": "semantic",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-211.32",
+            "score": 0.7098642587661743,
+            "chunk_id": "ecfr:title-12:section-211.32:version-2025-09-01:chunk-0001",
+            "parent_document_id": "ecfr:title-12:section-211.32:version-2025-09-01"
+          },
+          {
+            "rank": 10,
+            "section": "211.9",
+            "retrieval_source": "semantic",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-211.9",
+            "score": 0.7095946073532104,
+            "chunk_id": "ecfr:title-12:section-211.9:version-2025-09-01:chunk-0006",
+            "parent_document_id": "ecfr:title-12:section-211.9:version-2025-09-01"
+          }
+        ],
+        "fetched_sections": [
+          {
+            "section": "211.31",
+            "heading": "§ 211.31 Authority, purpose, and scope.",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-211.31",
+            "safe_for_citation": true
+          }
+        ],
+        "final_answer": {
+          "answer": "Relevant evidence was found in 12 CFR 211.31 (2025-09-01). Use the cited fixed-snapshot sections to answer the question.",
+          "citations": [
+            "12 CFR 211.31 (2025-09-01)"
+          ],
+          "insufficient": false
+        },
+        "termination_reason": "completed"
+      }
+    },
+    {
+      "question_id": "title12-dev-q018",
+      "trace": {
+        "schema": "legal-rag-agent-trace-v1",
+        "run_id": "84122282ae614f6d8f5d39dc1bb0a0e5",
+        "question": "For double default treatment under 12 CFR 217.135, what kind of exposure may be hedged and what related section defines the eligible guarantee or credit derivative treatment?",
+        "steps": [
+          {
+            "step_number": 1,
+            "action": "search_regulations",
+            "status": "completed",
+            "detail": {
+              "mode": "citation_aware",
+              "evidence_count": 10,
+              "sections": [
+                "217.135",
+                "217.134",
+                "217.142",
+                "217.135",
+                "217.135",
+                "324.135",
+                "3.135",
+                "324.135",
+                "324.135",
+                "3.135"
+              ]
+            }
+          },
+          {
+            "step_number": 2,
+            "action": "fetch_section",
+            "status": "completed",
+            "detail": {
+              "section": "217.135",
+              "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-217.135",
+              "safe_for_citation": true
+            }
+          },
+          {
+            "step_number": 3,
+            "action": "fetch_section",
+            "status": "completed",
+            "detail": {
+              "section": "217.134",
+              "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-217.134",
+              "safe_for_citation": true
+            }
+          },
+          {
+            "step_number": 4,
+            "action": "final_answer",
+            "status": "completed",
+            "detail": {
+              "citations": [
+                "12 CFR 217.135 (2025-09-01)",
+                "12 CFR 217.134 (2025-09-01)"
+              ]
+            }
+          }
+        ],
+        "evidence_summary": [
+          {
+            "rank": 1,
+            "section": "217.135",
+            "retrieval_source": "explicit_citation",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-217.135",
+            "score": 0.0,
+            "chunk_id": "ecfr:title-12:section-217.135:version-2025-09-01:chunk-0001",
+            "parent_document_id": "ecfr:title-12:section-217.135:version-2025-09-01"
+          },
+          {
+            "rank": 2,
+            "section": "217.134",
+            "retrieval_source": "cross_reference",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-217.134",
+            "score": 0.0,
+            "chunk_id": "ecfr:title-12:section-217.134:version-2025-09-01:chunk-0001",
+            "parent_document_id": "ecfr:title-12:section-217.134:version-2025-09-01"
+          },
+          {
+            "rank": 3,
+            "section": "217.142",
+            "retrieval_source": "cross_reference",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-217.142",
+            "score": 0.0,
+            "chunk_id": "ecfr:title-12:section-217.142:version-2025-09-01:chunk-0001",
+            "parent_document_id": "ecfr:title-12:section-217.142:version-2025-09-01"
+          },
+          {
+            "rank": 4,
+            "section": "217.135",
+            "retrieval_source": "semantic",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-217.135",
+            "score": 0.8631092309951782,
+            "chunk_id": "ecfr:title-12:section-217.135:version-2025-09-01:chunk-0003",
+            "parent_document_id": "ecfr:title-12:section-217.135:version-2025-09-01"
+          },
+          {
+            "rank": 5,
+            "section": "217.135",
+            "retrieval_source": "semantic",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-217.135",
+            "score": 0.8592153787612915,
+            "chunk_id": "ecfr:title-12:section-217.135:version-2025-09-01:chunk-0002",
+            "parent_document_id": "ecfr:title-12:section-217.135:version-2025-09-01"
+          },
+          {
+            "rank": 6,
+            "section": "324.135",
+            "retrieval_source": "semantic",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-324.135",
+            "score": 0.8528931140899658,
+            "chunk_id": "ecfr:title-12:section-324.135:version-2025-09-01:chunk-0003",
+            "parent_document_id": "ecfr:title-12:section-324.135:version-2025-09-01"
+          },
+          {
+            "rank": 7,
+            "section": "3.135",
+            "retrieval_source": "semantic",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-3.135",
+            "score": 0.8524167537689209,
+            "chunk_id": "ecfr:title-12:section-3.135:version-2025-09-01:chunk-0001",
+            "parent_document_id": "ecfr:title-12:section-3.135:version-2025-09-01"
+          },
+          {
+            "rank": 8,
+            "section": "324.135",
+            "retrieval_source": "semantic",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-324.135",
+            "score": 0.8499131798744202,
+            "chunk_id": "ecfr:title-12:section-324.135:version-2025-09-01:chunk-0001",
+            "parent_document_id": "ecfr:title-12:section-324.135:version-2025-09-01"
+          },
+          {
+            "rank": 9,
+            "section": "324.135",
+            "retrieval_source": "semantic",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-324.135",
+            "score": 0.8495692014694214,
+            "chunk_id": "ecfr:title-12:section-324.135:version-2025-09-01:chunk-0002",
+            "parent_document_id": "ecfr:title-12:section-324.135:version-2025-09-01"
+          },
+          {
+            "rank": 10,
+            "section": "3.135",
+            "retrieval_source": "semantic",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-3.135",
+            "score": 0.8486173152923584,
+            "chunk_id": "ecfr:title-12:section-3.135:version-2025-09-01:chunk-0002",
+            "parent_document_id": "ecfr:title-12:section-3.135:version-2025-09-01"
+          }
+        ],
+        "fetched_sections": [
+          {
+            "section": "217.135",
+            "heading": "§ 217.135 Guarantees and credit derivatives: double default treatment.",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-217.135",
+            "safe_for_citation": true
+          },
+          {
+            "section": "217.134",
+            "heading": "§ 217.134 Guarantees and credit derivatives: PD substitution and LGD adjustment approaches.",
+            "version_date": "2025-09-01",
+            "source_url": "https://www.ecfr.gov/on/2025-09-01/title-12/section-217.134",
+            "safe_for_citation": true
+          }
+        ],
+        "final_answer": {
+          "answer": "Relevant evidence was found in 12 CFR 217.135 (2025-09-01), 12 CFR 217.134 (2025-09-01). Use the cited fixed-snapshot sections to answer the question.",
+          "citations": [
+            "12 CFR 217.135 (2025-09-01)",
+            "12 CFR 217.134 (2025-09-01)"
+          ],
+          "insufficient": false
+        },
+        "termination_reason": "completed"
+      }
+    }
+  ]
+}

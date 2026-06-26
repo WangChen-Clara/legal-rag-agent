@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Literal
+from uuid import uuid4
 
 from .tools import RegulationEvidence, RegulationToolset, SectionRecord
 
@@ -11,6 +12,7 @@ TerminationReason = Literal[
     "insufficient_evidence",
     "max_steps_exceeded",
 ]
+TRACE_SCHEMA = "legal-rag-agent-trace-v1"
 
 
 @dataclass(frozen=True)
@@ -46,6 +48,7 @@ class FinalAnswer:
 @dataclass
 class AgentState:
     question: str
+    run_id: str = field(default_factory=lambda: uuid4().hex)
     steps: list[AgentStep] = field(default_factory=list)
     evidence: list[RegulationEvidence] = field(default_factory=list)
     fetched_sections: list[SectionRecord] = field(default_factory=list)
@@ -54,6 +57,7 @@ class AgentState:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "run_id": self.run_id,
             "question": self.question,
             "steps": [step.to_dict() for step in self.steps],
             "evidence": [item.to_dict() for item in self.evidence],
@@ -62,13 +66,46 @@ class AgentState:
             "terminated_reason": self.terminated_reason,
         }
 
+    def to_trace_dict(self, *, evidence_limit: int = 10) -> dict[str, Any]:
+        return {
+            "schema": TRACE_SCHEMA,
+            "run_id": self.run_id,
+            "question": self.question,
+            "steps": [step.to_dict() for step in self.steps],
+            "evidence_summary": [
+                {
+                    "rank": item.rank,
+                    "section": item.section,
+                    "retrieval_source": item.retrieval_source,
+                    "version_date": item.version_date,
+                    "source_url": item.source_url,
+                    "score": item.score,
+                    "chunk_id": item.chunk_id,
+                    "parent_document_id": item.parent_document_id,
+                }
+                for item in self.evidence[:evidence_limit]
+            ],
+            "fetched_sections": [
+                {
+                    "section": item.section,
+                    "heading": item.heading,
+                    "version_date": item.version_date,
+                    "source_url": item.source_url,
+                    "safe_for_citation": item.safe_for_citation,
+                }
+                for item in self.fetched_sections
+            ],
+            "final_answer": self.final_answer.to_dict() if self.final_answer else None,
+            "termination_reason": self.terminated_reason,
+        }
+
 
 class LegalRAGAgent:
     def __init__(
         self,
         toolset: RegulationToolset,
         *,
-        max_steps: int = 3,
+        max_steps: int = 4,
         top_k: int = 10,
         max_fetch_sections: int = 2,
     ):
@@ -78,6 +115,8 @@ class LegalRAGAgent:
             raise ValueError("top_k must be at least 1")
         if max_fetch_sections < 0:
             raise ValueError("max_fetch_sections must not be negative")
+        if max_steps < max_fetch_sections + 2:
+            raise ValueError("max_steps must be at least max_fetch_sections + 2")
         self.toolset = toolset
         self.max_steps = max_steps
         self.top_k = top_k

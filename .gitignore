@@ -27,6 +27,7 @@ data/eval/*.json
 # Keep curated Markdown reports and demos, but not bulky or process-heavy outputs.
 reports/*.json
 reports/*.md
+!reports/title12_agent_demo_trace.json
 !reports/title12_agent_demo.md
 !reports/title12_agent_validation.md
 !reports/title12_tools_validation.md
