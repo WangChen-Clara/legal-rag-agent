@@ -22,6 +22,34 @@ except ModuleNotFoundError:
 RESULT_SCHEMA = "title12-llm-judge-eval-v1"
 
 
+def normalize_question_record(record: dict[str, Any]) -> dict[str, Any]:
+    expected_sections = record.get("expected_sections") or record.get(
+        "acceptable_sections",
+        [],
+    )
+    return {
+        "question_id": record["question_id"],
+        "question": record["question"],
+        "expected_sections": list(expected_sections),
+    }
+
+
+def load_questions(args: argparse.Namespace) -> list[dict[str, Any]]:
+    if args.dataset == "validation":
+        records = VALIDATION_QUESTIONS
+    else:
+        payload = json.loads(args.questions_path.read_text(encoding="utf-8"))
+        records = payload["records"]
+    questions = [normalize_question_record(record) for record in records]
+    if args.question_limit is not None:
+        if args.question_limit < 1:
+            raise ValueError("question_limit must be at least 1")
+        questions = questions[: args.question_limit]
+    if not questions:
+        raise ValueError("no questions selected")
+    return questions
+
+
 def atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
@@ -195,17 +223,28 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--top-k", type=int, default=10)
     parser.add_argument("--max-steps", type=int, default=6)
     parser.add_argument("--max-fetch-sections", type=int, default=2)
+    parser.add_argument(
+        "--dataset",
+        choices=["validation", "development"],
+        default="validation",
+    )
+    parser.add_argument(
+        "--questions-path",
+        type=Path,
+        default=root / "data" / "eval" / "title12_development_qa_draft.json",
+    )
+    parser.add_argument("--question-limit", type=int, default=None)
     parser.add_argument("--no-answer-llm", action="store_true")
     parser.add_argument("--answer-base-url", default="http://localhost:11434/v1")
     parser.add_argument("--answer-model", default="qwen2.5:7b-instruct")
-    parser.add_argument("--answer-api-key", default="ollama")
+    parser.add_argument("--answer-api-key", default=None)
     parser.add_argument("--answer-api-key-env", default="LLM_API_KEY")
     parser.add_argument("--answer-temperature", type=float, default=0.1)
     parser.add_argument("--answer-top-p", type=float, default=0.9)
     parser.add_argument("--answer-timeout", type=int, default=120)
     parser.add_argument("--judge-base-url", default="http://localhost:11434/v1")
     parser.add_argument("--judge-model", default="qwen2.5:7b-instruct")
-    parser.add_argument("--judge-api-key", default="ollama")
+    parser.add_argument("--judge-api-key", default=None)
     parser.add_argument("--judge-api-key-env", default="JUDGE_API_KEY")
     parser.add_argument("--judge-temperature", type=float, default=0.0)
     parser.add_argument("--judge-top-p", type=float, default=0.9)
@@ -228,11 +267,17 @@ def main() -> None:
     root = Path(__file__).resolve().parents[1]
     agent = build_agent(args)
     judge = build_llm_client(args, prefix="judge")
-    results = [evaluate_question(agent, judge, item) for item in VALIDATION_QUESTIONS]
+    questions = load_questions(args)
+    results = [evaluate_question(agent, judge, item) for item in questions]
     metrics = summarize_scores(results)
     payload = {
         "schema": RESULT_SCHEMA,
+        "dataset": args.dataset,
         "questions": len(results),
+        "questions_path": str(args.questions_path.resolve())
+        if args.dataset == "development"
+        else None,
+        "question_limit": args.question_limit,
         "index_path": str(args.index.resolve()),
         "metadata_path": str(args.metadata.resolve()),
         "sections_path": str(args.sections.resolve()),

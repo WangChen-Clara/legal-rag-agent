@@ -252,6 +252,14 @@ class LegalRAGAgent:
             sections.append(item.section)
             if len(sections) >= self.max_fetch_sections:
                 break
+        if len(sections) >= self.max_fetch_sections:
+            return sections
+        for item in evidence:
+            if not item.section or item.section in sections:
+                continue
+            sections.append(item.section)
+            if len(sections) >= self.max_fetch_sections:
+                break
         return sections
 
     def _build_final_answer(self, state: AgentState) -> FinalAnswer:
@@ -319,7 +327,12 @@ class LegalRAGAgent:
             return None
         if not answer:
             return None
-        return FinalAnswer(answer=answer, citations=citations)
+        used_citations = [
+            citation
+            for section, citation in zip(citation_sections, citations, strict=False)
+            if citation in answer or f"12 CFR {section}" in answer
+        ]
+        return FinalAnswer(answer=answer, citations=used_citations or citations)
 
     @staticmethod
     def _build_llm_answer_prompt(
@@ -329,6 +342,7 @@ class LegalRAGAgent:
     ) -> str:
         evidence_blocks = []
         section_by_citation = dict(zip(citation_sections, citations, strict=False))
+        included_sections = set()
         for section in state.fetched_sections:
             if section.section not in citation_sections:
                 continue
@@ -344,14 +358,48 @@ class LegalRAGAgent:
                     ]
                 )
             )
+            included_sections.add(section.section)
+        for item in state.evidence:
+            if item.section not in citation_sections:
+                continue
+            if item.section in included_sections:
+                continue
+            citation = section_by_citation[item.section]
+            evidence_blocks.append(
+                "\n".join(
+                    [
+                        f"Citation: {citation}",
+                        f"Section: {item.section}",
+                        f"Version date: {item.version_date}",
+                        "Evidence excerpt:",
+                        item.text,
+                    ]
+                )
+            )
+            included_sections.add(item.section)
         evidence = "\n\n---\n\n".join(evidence_blocks)
         allowed_citations = ", ".join(citations)
         return f"""
 Answer the user's legal research question using only the verified evidence below.
-Do not invent authorities, dates, section numbers, facts, exceptions, or citations.
-If the verified evidence is insufficient, say that the verified evidence is insufficient.
 Use only these citations in the answer: {allowed_citations}.
-Keep the answer concise and cite the relevant section inline.
+
+Rules:
+- Before writing the final answer, internally perform this Evidence-to-Claim Checklist:
+  1. Identify each requested entity, action, condition, and referenced section.
+  2. Extract all conditions, qualifiers, exceptions, and definitions from the verified evidence.
+  3. Ensure the final answer includes every condition that limits applicability.
+  4. If a condition is not directly supported by evidence, state that the verified evidence is insufficient for that part.
+- Do not output the checklist. Output only the final answer.
+- Identify each sub-question or requested fact in the user's question, then answer each one directly.
+- Every legal claim must include one citation from the allowed citation list.
+- Do not invent authorities, dates, section numbers, facts, exceptions, definitions, or citations.
+- Do not treat purpose, background, or policy language as a definition unless the verified evidence explicitly defines the term.
+- If multiple sections contain parallel rules for different regulated entities, use the section whose scope matches the entity in the question.
+- Do not say the evidence is insufficient when an evidence block directly matches the requested entity and action.
+- If only one section supports the answer, cite only that section even if other allowed citations are listed.
+- If multiple verified sections are provided and each is relevant, state what each section supports.
+- If the verified evidence does not directly answer a requested fact, say that the verified evidence is insufficient for that part.
+- Keep the answer concise. Prefer 2-4 short sentences or a compact bullet list for multi-part questions.
 
 Question:
 {state.question}

@@ -23,7 +23,7 @@ Legal RAG Agent 展示了一套“先验证证据，再生成答案”的法规 
 - **失败回退机制**：可选 LLM 调用失败时返回确定性结果
 - **分层评测**：分别评估检索、Agent 流程和答案质量
 - **应用接口**：提供 CLI、FastAPI 问答接口和 Trace 查询
-- **测试覆盖**：最近一次本地测试结果为 `154 passed`
+- **测试覆盖**：最近一次本地测试结果为 `160 passed`
 
 ## 系统架构
 
@@ -80,7 +80,11 @@ flowchart LR
 
 这些结果来自小规模 Development Split，不能被解读为对广泛法律问答能力的证明。完整结果和失败案例见 [`reports/title12_context_retrieval_eval.md`](reports/title12_context_retrieval_eval.md)。
 
-LLM-as-Judge 仅作为辅助信号，不是 Ground Truth。正式评测应使用与 Answer Model 相互独立、能力更强的外部 Judge。
+### Development 答案质量检查
+
+最近一次本地 20 题 Development 运行使用 `qwen3.7-plus` 作为 Answer Composer，使用 `deepseek-v4-pro` 作为独立 LLM Judge。该运行 20 题全部通过，平均整体质量为 `4.95 / 5.00`，平均忠实度为 `4.95 / 5.00`，平均引用支撑为 `4.95 / 5.00`。
+
+LLM-as-Judge 仅作为辅助信号，不是 Ground Truth。这些数字适合用于回归检查和失败分析，不能被解读为对广泛法律问答能力的证明。
 
 ## 快速开始
 

@@ -23,7 +23,7 @@ This repository is a technical prototype, not a real-time legal research service
 - **Graceful fallback** — deterministic output is returned when the optional LLM call fails
 - **Multiple evaluation layers** — retrieval, Agent process, and LLM-as-Judge evaluation
 - **Application interfaces** — CLI and FastAPI endpoints for asking questions and reading traces
-- **Test coverage** — latest local run: `154 passed`
+- **Test coverage** — latest local run: `160 passed`
 
 ## Architecture
 
@@ -80,7 +80,11 @@ The committed development report contains 20 questions. The citation-aware `full
 
 These results are from a small development split and should not be interpreted as broad legal QA generalization. See [`reports/title12_context_retrieval_eval.md`](reports/title12_context_retrieval_eval.md) for the full breakdown and failure analysis.
 
-LLM-as-Judge is treated as an auxiliary signal, not ground truth. A stronger external judge should be independent from the answer model.
+### Development answer-quality check
+
+A recent local 20-question development run used `qwen3.7-plus` as the answer composer and `deepseek-v4-pro` as an independent LLM judge. The run passed all 20 examples, with average overall quality `4.95 / 5.00`, average faithfulness `4.95 / 5.00`, and average citation support `4.95 / 5.00`.
+
+LLM-as-Judge is treated as an auxiliary signal, not ground truth. These numbers are useful for regression checking and failure analysis, but they should not be interpreted as broad legal QA generalization.
 
 ## Quickstart
 

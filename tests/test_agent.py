@@ -91,6 +91,7 @@ def evidence(
     *,
     retrieval_source: str = "semantic",
     rank: int = 1,
+    text: str | None = None,
 ) -> RegulationEvidence:
     return RegulationEvidence(
         rank=rank,
@@ -101,7 +102,7 @@ def evidence(
         source_url=f"https://example.test/{section}",
         retrieval_source=retrieval_source,
         score=0.9,
-        text=f"Evidence for {section}.",
+        text=text or f"Evidence for {section}.",
         chunk_id=f"{section}:0",
         parent_document_id=f"ecfr:title-12:section-{section}:version-2025-09-01",
     )
@@ -156,7 +157,73 @@ def test_agent_uses_llm_for_final_answer_with_verified_evidence() -> None:
     assert state.final_answer.citations == ["12 CFR 217.135 (2025-09-01)"]
     assert "Full text for 217.135." in llm.prompts[0]
     assert "Use only these citations" in llm.prompts[0]
+    assert "Evidence-to-Claim Checklist" in llm.prompts[0]
+    assert "Identify each requested entity, action, condition" in llm.prompts[0]
+    assert "Extract all conditions, qualifiers, exceptions" in llm.prompts[0]
+    assert "includes every condition that limits applicability" in llm.prompts[0]
+    assert "Do not output the checklist" in llm.prompts[0]
+    assert "Identify each sub-question" in llm.prompts[0]
+    assert "Every legal claim must include one citation" in llm.prompts[0]
+    assert "Do not treat purpose, background, or policy language as a definition" in (
+        llm.prompts[0]
+    )
+    assert "state what each section supports" in llm.prompts[0]
+    assert "insufficient for that part" in llm.prompts[0]
     assert state.steps[-1].detail["llm_used"] is True
+
+
+def test_agent_includes_semantic_evidence_and_keeps_used_citations_only() -> None:
+    llm = FakeLLM(
+        "Before issuing the additional or replacement card, the federal credit "
+        "union card issuer must assess the validity of the address change and "
+        "may not issue the card until it either notifies the cardholder and "
+        "provides a means to report an incorrect address change, or otherwise "
+        "assesses validity under its established policies and procedures. "
+        "12 CFR 717.91 (2025-09-01)."
+    )
+    toolset = FakeToolset(
+        [
+            evidence(
+                "717.91",
+                rank=1,
+                text=(
+                    "This section applies to an issuer of a debit or credit card "
+                    "that is a federal credit union. The card issuer may not issue "
+                    "an additional or replacement card until it assesses the "
+                    "validity of the change of address."
+                ),
+            ),
+            evidence(
+                "41.91",
+                rank=2,
+                text=(
+                    "This parallel section applies to a national bank or Federal "
+                    "savings association."
+                ),
+            ),
+        ]
+    )
+    agent = LegalRAGAgent(
+        toolset,
+        max_steps=2,
+        max_fetch_sections=0,
+        llm_client=llm,
+    )
+
+    state = agent.run(
+        "What must a federal credit union card issuer do before issuing an "
+        "additional or replacement card soon after receiving a change-of-address "
+        "notice?"
+    )
+
+    assert state.terminated_reason == "completed"
+    assert "federal credit union" in llm.prompts[0]
+    assert "This parallel section applies to a national bank" in llm.prompts[0]
+    assert "whose scope matches the entity in the question" in llm.prompts[0]
+    assert "Do not say the evidence is insufficient" in llm.prompts[0]
+    assert "cite only that section" in llm.prompts[0]
+    assert state.final_answer is not None
+    assert state.final_answer.citations == ["12 CFR 717.91 (2025-09-01)"]
 
 
 def test_agent_falls_back_to_deterministic_answer_when_llm_fails() -> None:
@@ -201,6 +268,28 @@ def test_agent_default_steps_allow_two_fetches_and_final_answer() -> None:
     ]
     assert toolset.fetch_calls == ["217.135", "217.134"]
     assert toolset.verify_calls == ["217.135", "217.134"]
+
+
+def test_agent_fetches_top_semantic_sections_when_no_explicit_citations() -> None:
+    toolset = FakeToolset(
+        [
+            evidence("717.91", rank=1),
+            evidence("41.91", rank=2),
+            evidence("334.91", rank=3),
+        ]
+    )
+    agent = LegalRAGAgent(toolset, max_steps=6, max_fetch_sections=2)
+
+    state = agent.run("What must a federal credit union card issuer do?")
+
+    assert state.terminated_reason == "completed"
+    assert toolset.fetch_calls == ["717.91", "41.91"]
+    assert toolset.verify_calls == ["717.91", "41.91"]
+    assert state.final_answer is not None
+    assert state.final_answer.citations == [
+        "12 CFR 717.91 (2025-09-01)",
+        "12 CFR 41.91 (2025-09-01)",
+    ]
 
 
 def test_agent_state_exports_structured_trace() -> None:
