@@ -1,5 +1,7 @@
 # Legal RAG Agent
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 A traceable Legal RAG Agent for eCFR Title 12 financial regulation question answering.
 
 The project is built around a fixed eCFR snapshot and a verified evidence workflow. It is not a general legal chatbot. Its goal is to make the legal RAG path explicit:
