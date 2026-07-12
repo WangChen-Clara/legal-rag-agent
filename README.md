@@ -2,133 +2,115 @@
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-A traceable Legal RAG Agent for eCFR Title 12 financial regulation question answering.
+## Project Summary
 
-The project is built around a fixed eCFR snapshot and a verified evidence workflow. It is not a general legal chatbot. Its goal is to make the legal RAG path explicit:
+Legal RAG Agent is a citation-aware question answering system for a fixed eCFR Title 12 financial regulation snapshot.
+
+The project demonstrates a trustworthy RAG/Agent workflow for legal research scenarios: retrieval is tied to regulation sections, citations are verified before answer generation, the LLM only composes answers from verified evidence, and every run can be inspected through a structured trace.
+
+It is designed as a portfolio-grade applied LLM project rather than a general legal chatbot.
+
+## Highlights
+
+- Fixed eCFR Title 12 snapshot: `2025-09-01`
+- BGE Large + FAISS dense retrieval
+- Citation-aware retrieval for explicit CFR references
+- Experimental lexical and hybrid retrieval
+- Read-only legal tools:
+  - `search_regulations`
+  - `fetch_section`
+  - `verify_citation`
+- Verified Agent loop with bounded steps
+- Optional OpenAI-compatible LLM answer generation
+- System-controlled citations from verified sections
+- LLM-as-Judge answer-quality evaluation
+- FastAPI service with trace lookup
+- Full local test suite: `154 passed`
+
+## Architecture
 
 ```text
-fixed eCFR snapshot
--> citation-aware retrieval
--> fetch section
--> verify citation
--> LLM answer generation from verified evidence
--> trace
--> retrieval / process / answer-quality evaluation
--> CLI and FastAPI service
+eCFR Title 12 fixed snapshot
+        |
+        v
+canonical sections + chunks
+        |
+        v
+BGE embeddings + FAISS index
+        |
+        v
+citation-aware retrieval
+        |
+        v
+LegalRAGAgent
+        |
+        +--> search_regulations
+        +--> fetch_section
+        +--> verify_citation
+        +--> LLM answer generation / deterministic fallback
+        |
+        v
+answer + citations + trace
+        |
+        +--> retrieval evaluation
+        +--> process evaluation
+        +--> LLM-as-Judge evaluation
+        +--> FastAPI service
 ```
 
-This repository focuses on trustworthy system behavior: evidence is retrieved from a fixed corpus, citations are verified before use, final citations are controlled by the system, and each Agent run can be inspected through a JSON trace.
+More details:
 
-## Current Status
+- [Architecture](docs/architecture.md)
+- [中文架构说明](docs/architecture_zh.md)
 
-Implemented:
+## Agent Workflow
 
-- Fixed eCFR Title 12 snapshot workflow
-- BGE Large + FAISS dense retrieval
-- Citation-aware retrieval with explicit CFR section priority
-- Experimental lexical + hybrid retrieval
-- Read-only tool layer:
-  - `search_regulations`
-  - `fetch_section`
-  - `verify_citation`
-- Verified Agent loop:
-  - `search_regulations`
-  - `fetch_section`
-  - `verify_citation`
-  - `final_answer`
-- Optional OpenAI-compatible LLM answer generation
-- LLM-as-Judge answer-quality evaluation
-- FastAPI service:
-  - `GET /health`
-  - `POST /ask`
-  - `GET /trace/{trace_id}`
-- Structured Agent trace output
-- Retrieval, process, LLM judge, tool, CLI, and API tests
+The Agent follows a deterministic, inspectable workflow:
 
-Latest local test result:
+```text
+question
+-> search_regulations
+-> fetch_section
+-> verify_citation
+-> final_answer
+```
+
+The LLM is only used after citation verification. It receives verified evidence and a system-generated citation list. It does not decide which legal authority to cite.
+
+If the LLM call fails, the Agent falls back to deterministic answer generation.
+
+## Evaluation
+
+The project separates evaluation into three layers:
+
+| Layer | Purpose |
+|---|---|
+| Retrieval evaluation | Check whether the right sections are retrieved |
+| Process evaluation | Check whether the Agent follows the expected tool workflow |
+| LLM-as-Judge evaluation | Check answer relevance, faithfulness, citation support, and legal caution |
+
+Current validated local test result:
 
 ```text
 154 passed
 ```
 
-## Why Verification Matters
-
-Legal RAG has a different failure mode from ordinary document QA. A fluent answer is not enough. The system needs to know:
-
-- which regulation section was retrieved
-- which fixed version date it came from
-- whether the section URL matches the fixed snapshot
-- whether the citation is safe to expose
-- whether the final answer cites only verified evidence
-
-This project therefore keeps LLM generation downstream of retrieval and citation verification. The LLM is an answer composer, not the authority selector.
-
-## Snapshot
-
-- Source: eCFR Title 12
-- Fixed version date: `2025-09-01`
-- Citation URL format:
+Generated evaluation reports include:
 
 ```text
-https://www.ecfr.gov/on/2025-09-01/title-12/section-217.134
+reports/title12_hybrid_retrieval_eval.md
+reports/title12_agent_process_eval.md
+reports/title12_llm_judge_eval.md
 ```
 
-This project is not a real-time legal research system and is not legal advice.
-
-## Architecture
-
-See:
-
-- `docs/architecture.md`
-- `docs/architecture_zh.md`
-- `docs/agent_system_plan_zh.md`
-
-High-level workflow:
+LLM-as-Judge is treated as an auxiliary signal, not ground truth. For credible answer-quality evaluation, the recommended setup is:
 
 ```text
-Question
-  |
-  v
-search_regulations
-  |
-  v
-fetch_section
-  |
-  v
-verify_citation
-  |
-  v
-LLM answer generation or deterministic fallback
-  |
-  v
-Final answer + citations + trace
+answer model = qwen2.5:7b-instruct
+judge model  = deepseek-v4-pro
 ```
 
-The final citation list is generated by the system from verified sections. The model is instructed to use only those citations.
-
-## Local Assets
-
-Large generated assets are intentionally not committed:
-
-- `.venv/`
-- `.conda-gpu/`
-- `models/`
-- `data/raw/`
-- `data/canonical/`
-- `data/indexes/`
-- `data/alignment/`
-- `data/recovered/`
-- `*.index`
-- `*.npy`
-- bulky generated JSON reports
-
-The code assumes a local embedding model and FAISS index exist. In this workspace, the embedding model used for verification is:
-
-```text
-D:\pythonProject\rag_law\bge-large-en-v1.5
-```
-
-## Environment
+## Quickstart
 
 Install dependencies:
 
@@ -143,42 +125,19 @@ Set `PYTHONPATH`:
 $env:PYTHONPATH = "D:\pythonProject\rag_law_clean\src"
 ```
 
-## Secrets
+Local generated assets are not committed to the repository. The verified local setup uses:
 
-Do not commit real API keys.
-
-Use `.env` locally and keep `.env.example` as the public template:
-
-```env
-JUDGE_API_KEY=
-JUDGE_BASE_URL=https://api.deepseek.com
-JUDGE_MODEL=deepseek-v4-pro
-
-ANSWER_BASE_URL=http://localhost:11434/v1
-ANSWER_MODEL=qwen2.5:7b-instruct
-ANSWER_API_KEY=ollama
+```text
+D:\pythonProject\rag_law\bge-large-en-v1.5
 ```
 
-Load `.env` in PowerShell:
-
-```powershell
-Get-Content .env | ForEach-Object {
-  if ($_ -and -not $_.StartsWith("#")) {
-    $name, $value = $_ -split "=", 2
-    Set-Item -Path "Env:$name" -Value $value
-  }
-}
-```
-
-`.env` is ignored by Git.
+as the embedding model path.
 
 ## CLI Demo
 
-Run the Agent without LLM generation:
+Run without LLM generation:
 
 ```powershell
-$env:PYTHONPATH = "D:\pythonProject\rag_law_clean\src"
-
 D:\pythonProject\rag_law_clean\.venv\Scripts\python.exe `
   D:\pythonProject\rag_law_clean\scripts\ask_agent.py `
   "What does 12 CFR 211.31 apply to?" `
@@ -189,8 +148,6 @@ D:\pythonProject\rag_law_clean\.venv\Scripts\python.exe `
 Run with local Ollama LLM generation:
 
 ```powershell
-$env:PYTHONPATH = "D:\pythonProject\rag_law_clean\src"
-
 D:\pythonProject\rag_law_clean\.venv\Scripts\python.exe `
   D:\pythonProject\rag_law_clean\scripts\ask_agent.py `
   "What does 12 CFR 211.31 apply to?" `
@@ -202,94 +159,13 @@ D:\pythonProject\rag_law_clean\.venv\Scripts\python.exe `
   --llm-api-key ollama
 ```
 
-The CLI prints:
+The CLI prints the answer, citations, fetched sections, citation verification status, top evidence, termination reason, and trace path.
 
-- answer
-- citations
-- fetched sections
-- citation verification status
-- top evidence
-- termination reason
-- trace JSON path
+## API Demo
 
-## LLM Answer Generation
-
-The default local answer model is:
-
-```text
-qwen2.5:7b-instruct via Ollama
-```
-
-The code uses an OpenAI-compatible chat-completions interface. You can replace Ollama with any compatible API by changing:
-
-```text
---llm-base-url
---llm-model
---llm-api-key
-```
-
-If the LLM call fails, the Agent falls back to deterministic answer generation. The system-controlled citation list is preserved.
-
-## LLM-as-Judge Evaluation
-
-Run the LLM-as-Judge evaluation:
+Start the FastAPI service:
 
 ```powershell
-cd D:\pythonProject\rag_law_clean
-
-Get-Content .env | ForEach-Object {
-  if ($_ -and -not $_.StartsWith("#")) {
-    $name, $value = $_ -split "=", 2
-    Set-Item -Path "Env:$name" -Value $value
-  }
-}
-
-$env:PYTHONPATH = "D:\pythonProject\rag_law_clean\src"
-
-D:\pythonProject\rag_law_clean\.venv\Scripts\python.exe `
-  D:\pythonProject\rag_law_clean\scripts\evaluate_title12_llm_judge.py `
-  --device cpu `
-  --model D:\pythonProject\rag_law\bge-large-en-v1.5 `
-  --judge-base-url $env:JUDGE_BASE_URL `
-  --judge-model $env:JUDGE_MODEL `
-  --judge-api-key-env JUDGE_API_KEY
-```
-
-Outputs:
-
-```text
-reports/title12_llm_judge_eval.json
-reports/title12_llm_judge_eval.md
-```
-
-Judge metrics:
-
-```text
-answer_relevance
-faithfulness
-citation_support
-legal_caution
-overall
-pass/fail
-issues
-```
-
-Important evaluation note:
-
-If the same model is used for answer generation and judging, the result should only be treated as a runnable evaluation loop. For a more credible quality signal, use an independent judge model. In this project, the recommended judge configuration is:
-
-```text
-answer model = qwen2.5:7b-instruct
-judge model  = deepseek-v4-pro
-```
-
-## FastAPI Service
-
-Start the API:
-
-```powershell
-cd D:\pythonProject\rag_law_clean
-
 $env:PYTHONPATH = "D:\pythonProject\rag_law_clean\src"
 $env:RAG_LAW_EMBEDDING_MODEL = "D:\pythonProject\rag_law\bge-large-en-v1.5"
 $env:RAG_LAW_USE_LLM = "true"
@@ -314,85 +190,35 @@ Invoke-RestMethod `
   -Body '{"question":"What does 12 CFR 211.31 apply to?"}'
 ```
 
-Trace:
+Trace lookup:
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8000/trace/<trace_id>
 ```
 
-The API uses lazy Agent initialization, so importing `rag_law.api:app` does not immediately load the index and embedding model.
+## Security
 
-## Evaluation Scripts
+Do not commit real API keys.
 
-Hybrid retrieval evaluation:
+Use `.env` locally and `.env.example` as the public template:
 
-```powershell
-$env:PYTHONPATH = "D:\pythonProject\rag_law_clean\src"
+```env
+JUDGE_API_KEY=
+JUDGE_BASE_URL=https://api.deepseek.com
+JUDGE_MODEL=deepseek-v4-pro
 
-D:\pythonProject\rag_law_clean\.venv\Scripts\python.exe `
-  D:\pythonProject\rag_law_clean\scripts\evaluate_title12_hybrid_retrieval.py `
-  --device cpu `
-  --model D:\pythonProject\rag_law\bge-large-en-v1.5
+ANSWER_BASE_URL=http://localhost:11434/v1
+ANSWER_MODEL=qwen2.5:7b-instruct
+ANSWER_API_KEY=ollama
 ```
 
-Agent process evaluation:
-
-```powershell
-$env:PYTHONPATH = "D:\pythonProject\rag_law_clean\src"
-
-D:\pythonProject\rag_law_clean\.venv\Scripts\python.exe `
-  D:\pythonProject\rag_law_clean\scripts\evaluate_title12_agent_process.py `
-  --device cpu `
-  --model D:\pythonProject\rag_law\bge-large-en-v1.5
-```
-
-## Tests
-
-Run all tests:
-
-```powershell
-$env:PYTHONPATH = "D:\pythonProject\rag_law_clean\src"
-D:\pythonProject\rag_law_clean\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider
-```
-
-Latest local result:
-
-```text
-154 passed
-```
-
-## Design Decisions
-
-- Fixed snapshot over live legal search
-- Verified citations over free-form model citations
-- Tool-based section retrieval over unbounded context stuffing
-- LLM answer composition after verification
-- Deterministic fallback when LLM fails
-- Evaluation split into retrieval, process, and answer-quality layers
-- FastAPI as a thin service wrapper over the same Agent core
+`.env` is ignored by Git.
 
 ## Limitations
 
-- The public repository does not include the local eCFR corpus, FAISS index, or embedding model.
-- The evaluation set is intentionally small and should not be presented as broad legal QA generalization.
-- LLM-as-Judge is an auxiliary signal, not ground truth.
+- The repository does not include the local eCFR corpus, FAISS index, or embedding model.
 - The system is tied to the fixed `2025-09-01` Title 12 snapshot.
-- The Agent workflow is deterministic; it does not yet use an LLM planner for tool selection.
-- This is not legal advice.
-
-## Roadmap
-
-Near-term:
-
-- Run formal LLM-as-Judge evaluation with `deepseek-v4-pro` during off-peak hours
-- Improve answer prompt if citation support or faithfulness remains low
-- Add stronger README/demo screenshots or sample outputs
-- Prepare resume and interview materials
-
-Deferred:
-
-- Full multi-agent role decomposition
-- Docker/cloud deployment
-- Frontend UI
-- Large manually curated evaluation set
-- Complex regulation version comparison
+- The evaluation set is small and should not be presented as broad legal QA generalization.
+- LLM-as-Judge is an auxiliary evaluation method, not ground truth.
+- The Agent workflow is deterministic and does not yet use an LLM planner for tool selection.
+- This project is not legal advice.
