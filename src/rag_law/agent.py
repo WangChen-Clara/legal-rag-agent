@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 from uuid import uuid4
 
-from .tools import RegulationEvidence, RegulationToolset, SectionRecord
+from .llm_client import LLMClientError
+from .tools import (
+    CitationVerificationResult,
+    RegulationEvidence,
+    RegulationToolset,
+    SectionRecord,
+)
 
 
 TerminationReason = Literal[
@@ -13,6 +19,11 @@ TerminationReason = Literal[
     "max_steps_exceeded",
 ]
 TRACE_SCHEMA = "legal-rag-agent-trace-v1"
+
+
+class AnswerLLM(Protocol):
+    def complete(self, prompt: str) -> str:
+        ...
 
 
 @dataclass(frozen=True)
@@ -52,6 +63,7 @@ class AgentState:
     steps: list[AgentStep] = field(default_factory=list)
     evidence: list[RegulationEvidence] = field(default_factory=list)
     fetched_sections: list[SectionRecord] = field(default_factory=list)
+    citation_verifications: list[CitationVerificationResult] = field(default_factory=list)
     final_answer: FinalAnswer | None = None
     terminated_reason: TerminationReason | None = None
 
@@ -62,6 +74,9 @@ class AgentState:
             "steps": [step.to_dict() for step in self.steps],
             "evidence": [item.to_dict() for item in self.evidence],
             "fetched_sections": [item.to_dict() for item in self.fetched_sections],
+            "citation_verifications": [
+                item.to_dict() for item in self.citation_verifications
+            ],
             "final_answer": self.final_answer.to_dict() if self.final_answer else None,
             "terminated_reason": self.terminated_reason,
         }
@@ -95,6 +110,17 @@ class AgentState:
                 }
                 for item in self.fetched_sections
             ],
+            "citation_verifications": [
+                {
+                    "section": item.section,
+                    "verified": item.verified,
+                    "version_date": item.version_date,
+                    "source_url": item.source_url,
+                    "safe_for_citation": item.safe_for_citation,
+                    "issues": item.issues,
+                }
+                for item in self.citation_verifications
+            ],
             "final_answer": self.final_answer.to_dict() if self.final_answer else None,
             "termination_reason": self.terminated_reason,
         }
@@ -105,9 +131,10 @@ class LegalRAGAgent:
         self,
         toolset: RegulationToolset,
         *,
-        max_steps: int = 4,
+        max_steps: int = 6,
         top_k: int = 10,
         max_fetch_sections: int = 2,
+        llm_client: AnswerLLM | None = None,
     ):
         if max_steps < 1:
             raise ValueError("max_steps must be at least 1")
@@ -115,12 +142,13 @@ class LegalRAGAgent:
             raise ValueError("top_k must be at least 1")
         if max_fetch_sections < 0:
             raise ValueError("max_fetch_sections must not be negative")
-        if max_steps < max_fetch_sections + 2:
-            raise ValueError("max_steps must be at least max_fetch_sections + 2")
+        if max_steps < (max_fetch_sections * 2) + 2:
+            raise ValueError("max_steps must be at least max_fetch_sections * 2 + 2")
         self.toolset = toolset
         self.max_steps = max_steps
         self.top_k = top_k
         self.max_fetch_sections = max_fetch_sections
+        self.llm_client = llm_client
 
     def run(self, question: str) -> AgentState:
         question = question.strip()
@@ -176,6 +204,23 @@ class LegalRAGAgent:
                 },
             )
 
+        for section in state.fetched_sections:
+            if not self._can_take_step(state):
+                self._terminate_max_steps(state)
+                return state
+            verification = self.toolset.verify_citation(section.section)
+            state.citation_verifications.append(verification)
+            self._record_step(
+                state,
+                action="verify_citation",
+                status="completed" if verification.verified else "failed",
+                detail={
+                    "section": verification.section,
+                    "verified": verification.verified,
+                    "issues": verification.issues,
+                },
+            )
+
         if not self._can_take_step(state):
             self._terminate_max_steps(state)
             return state
@@ -188,7 +233,12 @@ class LegalRAGAgent:
             state,
             action="final_answer",
             status=state.terminated_reason,
-            detail={"citations": state.final_answer.citations},
+            detail={
+                "citations": state.final_answer.citations,
+                "llm_used": self.llm_client is not None
+                and not state.final_answer.insufficient
+                and not state.final_answer.answer.startswith("Relevant evidence was found"),
+            },
         )
         return state
 
@@ -213,26 +263,104 @@ class LegalRAGAgent:
             )
 
         citation_sections = []
+        verified_sections = {
+            item.section for item in state.citation_verifications if item.verified
+        }
         for section in state.fetched_sections:
+            if state.citation_verifications and section.section not in verified_sections:
+                continue
             if section.section not in citation_sections:
                 citation_sections.append(section.section)
-        if not citation_sections:
+        if not citation_sections and not state.citation_verifications:
             for item in state.evidence:
                 if item.section and item.section not in citation_sections:
                     citation_sections.append(item.section)
                 if len(citation_sections) >= 2:
                     break
+        if not citation_sections:
+            return FinalAnswer(
+                answer="Insufficient information in the verified evidence.",
+                citations=[],
+                insufficient=True,
+            )
 
         citations = [
             self._citation_for_section(section, state)
             for section in citation_sections
         ]
+        if self.llm_client is not None:
+            llm_answer = self._try_build_llm_answer(state, citation_sections, citations)
+            if llm_answer is not None:
+                return llm_answer
+
+        return self._build_deterministic_answer(citations)
+
+    @staticmethod
+    def _build_deterministic_answer(citations: list[str]) -> FinalAnswer:
         answer = (
             "Relevant evidence was found in "
             + ", ".join(citations)
             + ". Use the cited fixed-snapshot sections to answer the question."
         )
         return FinalAnswer(answer=answer, citations=citations)
+
+    def _try_build_llm_answer(
+        self,
+        state: AgentState,
+        citation_sections: list[str],
+        citations: list[str],
+    ) -> FinalAnswer | None:
+        if self.llm_client is None:
+            return None
+        prompt = self._build_llm_answer_prompt(state, citation_sections, citations)
+        try:
+            answer = self.llm_client.complete(prompt).strip()
+        except LLMClientError:
+            return None
+        if not answer:
+            return None
+        return FinalAnswer(answer=answer, citations=citations)
+
+    @staticmethod
+    def _build_llm_answer_prompt(
+        state: AgentState,
+        citation_sections: list[str],
+        citations: list[str],
+    ) -> str:
+        evidence_blocks = []
+        section_by_citation = dict(zip(citation_sections, citations, strict=False))
+        for section in state.fetched_sections:
+            if section.section not in citation_sections:
+                continue
+            citation = section_by_citation[section.section]
+            evidence_blocks.append(
+                "\n".join(
+                    [
+                        f"Citation: {citation}",
+                        f"Heading: {section.heading}",
+                        f"Version date: {section.version_date}",
+                        "Text:",
+                        section.text,
+                    ]
+                )
+            )
+        evidence = "\n\n---\n\n".join(evidence_blocks)
+        allowed_citations = ", ".join(citations)
+        return f"""
+Answer the user's legal research question using only the verified evidence below.
+Do not invent authorities, dates, section numbers, facts, exceptions, or citations.
+If the verified evidence is insufficient, say that the verified evidence is insufficient.
+Use only these citations in the answer: {allowed_citations}.
+Keep the answer concise and cite the relevant section inline.
+
+Question:
+{state.question}
+
+Verified evidence:
+{evidence}
+
+Answer:
+""".strip()
 
     @staticmethod
     def _citation_for_section(section: str, state: AgentState) -> str:

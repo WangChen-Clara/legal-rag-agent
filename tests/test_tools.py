@@ -54,7 +54,13 @@ class FakeRetriever:
         ]
 
 
-def write_sections(path: Path) -> None:
+def write_sections(
+    path: Path,
+    *,
+    source_url: str = "https://example.test/217.134",
+    version_date: str = "2025-09-01",
+    safe_for_citation: bool = True,
+) -> None:
     rows = [
         {
             "document_id": "ecfr:title-12:section-217.134:version-2025-09-01",
@@ -62,10 +68,10 @@ def write_sections(path: Path) -> None:
             "part": "217",
             "section": "217.134",
             "heading": "§ 217.134 Guarantees and credit derivatives.",
-            "version_date": "2025-09-01",
-            "source_url": "https://example.test/217.134",
+            "version_date": version_date,
+            "source_url": source_url,
             "text": "Full section text.",
-            "safe_for_citation": True,
+            "safe_for_citation": safe_for_citation,
         }
     ]
     path.write_text(
@@ -117,6 +123,34 @@ def test_search_regulations_rejects_invalid_inputs() -> None:
         toolset.search_regulations("question", mode="bad")  # type: ignore[arg-type]
 
 
+def test_call_search_regulations_returns_structured_success() -> None:
+    retriever = FakeRetriever()
+    toolset = RegulationToolset(retriever, sections_path("unused_sections.jsonl"))
+
+    result = toolset.call_search_regulations("What does 12 CFR 211.31 apply to?", top_k=3)
+
+    assert result.ok is True
+    assert result.tool_name == "search_regulations"
+    assert result.error is None
+    assert result.elapsed_ms is not None
+    assert result.data is not None
+    assert result.data["mode"] == "citation_aware"
+    assert result.data["evidence"][0]["section"] == "211.31"
+    assert result.to_dict()["error"] is None
+
+
+def test_call_search_regulations_returns_invalid_argument_error() -> None:
+    toolset = RegulationToolset(FakeRetriever(), sections_path("unused_sections.jsonl"))
+
+    result = toolset.call_search_regulations("   ")
+
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.code == "INVALID_ARGUMENT"
+    assert result.data is None
+    assert result.to_dict()["error"]["detail"]["query"] == "   "
+
+
 def test_fetch_section_returns_full_parent_section() -> None:
     path = sections_path("sections.jsonl")
     write_sections(path)
@@ -138,3 +172,102 @@ def test_fetch_section_reports_missing_section() -> None:
 
     with pytest.raises(KeyError, match="999.1"):
         toolset.fetch_section("999.1")
+
+
+def test_call_fetch_section_returns_structured_success() -> None:
+    path = sections_path("sections.jsonl")
+    write_sections(path)
+    toolset = RegulationToolset(FakeRetriever(), path)
+
+    result = toolset.call_fetch_section("12 CFR 217.134(a)(1)")
+
+    assert result.ok is True
+    assert result.tool_name == "fetch_section"
+    assert result.error is None
+    assert result.elapsed_ms is not None
+    assert result.data is not None
+    assert result.data["section"] == "217.134"
+    assert result.to_dict()["data"]["safe_for_citation"] is True
+
+
+def test_call_fetch_section_returns_not_found_error() -> None:
+    path = sections_path("sections.jsonl")
+    write_sections(path)
+    toolset = RegulationToolset(FakeRetriever(), path)
+
+    result = toolset.call_fetch_section("999.1")
+
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.code == "NOT_FOUND"
+    assert "999.1" in result.error.message
+    assert result.data is None
+
+
+def test_verify_citation_accepts_fixed_snapshot_section() -> None:
+    path = sections_path("verified_sections.jsonl")
+    write_sections(
+        path,
+        source_url="https://www.ecfr.gov/on/2025-09-01/title-12/section-217.134",
+    )
+    toolset = RegulationToolset(FakeRetriever(), path)
+
+    result = toolset.verify_citation("12 CFR 217.134(a)(1)")
+
+    assert result.verified is True
+    assert result.section == "217.134"
+    assert result.issues == []
+    assert result.checks == {
+        "section_exists": True,
+        "version_matches": True,
+        "source_url_matches": True,
+        "safe_for_citation": True,
+    }
+
+
+def test_verify_citation_reports_metadata_issues() -> None:
+    path = sections_path("unverified_sections.jsonl")
+    write_sections(
+        path,
+        source_url="https://example.test/217.134",
+        version_date="2025-08-01",
+        safe_for_citation=False,
+    )
+    toolset = RegulationToolset(FakeRetriever(), path)
+
+    result = toolset.verify_citation("217.134")
+
+    assert result.verified is False
+    assert result.issues == [
+        "version_matches",
+        "source_url_matches",
+        "safe_for_citation",
+    ]
+
+
+def test_call_verify_citation_returns_structured_result() -> None:
+    path = sections_path("verified_sections.jsonl")
+    write_sections(
+        path,
+        source_url="https://www.ecfr.gov/on/2025-09-01/title-12/section-217.134",
+    )
+    toolset = RegulationToolset(FakeRetriever(), path)
+
+    result = toolset.call_verify_citation("12 CFR 217.134")
+
+    assert result.ok is True
+    assert result.tool_name == "verify_citation"
+    assert result.data is not None
+    assert result.data["verified"] is True
+
+
+def test_call_verify_citation_returns_not_found_error() -> None:
+    path = sections_path("sections.jsonl")
+    write_sections(path)
+    toolset = RegulationToolset(FakeRetriever(), path)
+
+    result = toolset.call_verify_citation("999.1")
+
+    assert result.ok is False
+    assert result.error is not None
+    assert result.error.code == "NOT_FOUND"
