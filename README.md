@@ -1,303 +1,396 @@
-# Legal RAG Agent（中文说明）
-
-这是一个面向法规问答场景的 Legal RAG Agent 原型项目。项目基于固定日期的
-eCFR Title 12 法规快照，把法规文本整理成可检索、可追溯、可评测的结构化语料。
-
-项目目标不是做一个普通聊天机器人，而是验证法律 RAG 中更关键的能力：
-
-- 回答必须能追溯到具体法规条款；
-- 检索结果要包含法规编号、版本日期和来源链接；
-- 工具调用过程要有边界，避免无限循环；
-- 项目结果要能通过测试和评测报告解释。
-
-## 项目做什么
-
-用户提出法规问题后，系统会：
-
-```text
-用户问题
--> search_regulations 检索相关法规证据
--> 可选 fetch_section 获取完整法规条款
--> 输出带 citation 的回答
-```
-
-当前 demo 是确定性、模板化的 Agent Harness，主要用于展示检索、工具调用、证据处理
-和引用链路。它暂时不调用远程 LLM，也不声称提供真实法律建议。
-
-## 数据快照
-
-- 数据源：eCFR Title 12
-- 固定版本日期：`2025-09-01`
-- 语料结构：官方 section 父文档 + 结构化 chunks
-- 引用方式：固定快照 URL，例如
-  `https://www.ecfr.gov/on/2025-09-01/title-12/section-217.134`
-
-这个项目不是实时法律检索系统，不能代表当前最新法律。
-
-## 当前已经实现
-
-- 官方 Title 12 规范语料构建
-- 结构化 chunk 构建
-- BGE Large + FAISS 检索索引
-- citation-aware retrieval：
-  - 显式 CFR 条款优先召回，例如 `12 CFR 211.31`
-  - 从显式条款出发做一跳交叉引用扩展
-- 只读工具：
-  - `search_regulations`
-  - `fetch_section`
-- 带最大步骤限制的轻量 deterministic Agent Harness
-- Development-only 检索评测、工具验证和 Agent 验证报告
-- Markdown demo，展示 Agent 步骤、证据、完整条款和 citations
-
-## 运行 Demo
-
-运行 deterministic Agent demo：
-
-```powershell
-cd legal-rag-agent
-pip install -e .[dev]
-$env:PYTHONPATH = "$PWD\src"
-python scripts\demo_title12_agent.py --device cpu
-```
-
-如果本机已有 CUDA / PyTorch GPU 环境，可以改用：
-
-```powershell
-python scripts\demo_title12_agent.py --device cuda
-```
-
-生成的报告位置：
-
-```text
-reports/title12_agent_demo.md
-reports/title12_agent_demo_trace.json
-```
-
-demo 包含两个 Development 示例：
-
-- q001：对 `12 CFR 211.31` 的显式 citation 检索；
-- q018：对 `12 CFR 217.135` 的显式 citation 检索，并扩展到交叉引用条款
-  `12 CFR 217.134`。
-
-demo 不会调用远程 LLM。
-
-注意：公开仓库不包含本地生成的大型运行资产，例如 embedding model、FAISS index
-和 canonical corpus。仓库中的精选报告由这些本地资产生成，用于展示项目结果。
-
-## 验证方式
-
-Agent loop 验证：
-
-```powershell
-python scripts\validate_title12_agent.py --device cpu
-```
-
-工具验证：
-
-```powershell
-python scripts\validate_title12_tools.py --device cpu
-```
-
-离线测试：
-
-```powershell
-$env:PYTHONPATH = "$PWD\src"
-python -m pytest -q -p no:cacheprovider
-```
-
-最近一次本地结果：`112 passed`。
-
-## 本地大文件说明
-
-大型生成资产不会放进公开仓库，包括：
-
-- 本地 Python 环境：`.venv/`、`.conda-gpu/`
-- FAISS 索引：`data/indexes/`
-- 原始 eCFR XML：`data/raw/`
-- 生成的规范语料和 chunks：`data/canonical/`
-- 对齐和历史恢复数据：`data/alignment/`、`data/recovered/`
-- 评测构造 JSON：`data/eval/*.json`
-- 大型 JSON 报告：`reports/*.json`
-
-其中 `reports/title12_agent_demo_trace.json` 是精选结构化 trace 展示文件，可以作为
-Agent 运行过程的可解释性样例；其他大型或过程 JSON 仍然默认忽略。
-
-公开仓库主要保留源码、测试、轻量文档、精选 Markdown demo 报告和精选 trace。
-
-## 安全说明
-
-远程 LLM 密钥必须来自环境变量：
-
-```powershell
-$env:RAG_LAW_API_KEY = "your-key"
-```
-
-不要把真实 API Key 写入源码、YAML、Markdown、Dockerfile、notebook 或日志。
-当前 deterministic Agent demo 不需要 API Key。
-
-## 当前限制
-
-- demo 答案是模板化结果，不是最终自然语言法律答案；
-- Agent loop 是确定性流程，还没有使用 LLM 选择工具；
-- Holdout retrieval 在策略设计阶段刻意没有查看；
-- citation verification 和 version comparison 还没有实现；
-- 项目绑定固定 `2025-09-01` 快照，不能说成当前最新法律。
-
-## English Version
-
 # Legal RAG Agent
 
-A CLI-first / Python API prototype for a citation-aware Legal RAG Agent over a
-fixed eCFR Title 12 snapshot.
+A traceable Legal RAG Agent for eCFR Title 12 financial regulation question answering.
 
-The project demonstrates a bounded, read-only Agent Harness:
+The project is built around a fixed eCFR snapshot and a verified evidence workflow. It is not a general legal chatbot. Its goal is to make the legal RAG path explicit:
 
 ```text
-question
--> search_regulations
--> optional fetch_section
--> final cited answer
+fixed eCFR snapshot
+-> citation-aware retrieval
+-> fetch section
+-> verify citation
+-> LLM answer generation from verified evidence
+-> trace
+-> retrieval / process / answer-quality evaluation
+-> CLI and FastAPI service
 ```
 
-The current demo is deterministic and template-based. It is designed to show
-retrieval, tool use, evidence handling, and citation plumbing before adding remote
-LLM decision-making.
+This repository focuses on trustworthy system behavior: evidence is retrieved from a fixed corpus, citations are verified before use, final citations are controlled by the system, and each Agent run can be inspected through a JSON trace.
+
+## Current Status
+
+Implemented:
+
+- Fixed eCFR Title 12 snapshot workflow
+- BGE Large + FAISS dense retrieval
+- Citation-aware retrieval with explicit CFR section priority
+- Experimental lexical + hybrid retrieval
+- Read-only tool layer:
+  - `search_regulations`
+  - `fetch_section`
+  - `verify_citation`
+- Verified Agent loop:
+  - `search_regulations`
+  - `fetch_section`
+  - `verify_citation`
+  - `final_answer`
+- Optional OpenAI-compatible LLM answer generation
+- LLM-as-Judge answer-quality evaluation
+- FastAPI service:
+  - `GET /health`
+  - `POST /ask`
+  - `GET /trace/{trace_id}`
+- Structured Agent trace output
+- Retrieval, process, LLM judge, tool, CLI, and API tests
+
+Latest local test result:
+
+```text
+154 passed
+```
+
+## Why Verification Matters
+
+Legal RAG has a different failure mode from ordinary document QA. A fluent answer is not enough. The system needs to know:
+
+- which regulation section was retrieved
+- which fixed version date it came from
+- whether the section URL matches the fixed snapshot
+- whether the citation is safe to expose
+- whether the final answer cites only verified evidence
+
+This project therefore keeps LLM generation downstream of retrieval and citation verification. The LLM is an answer composer, not the authority selector.
 
 ## Snapshot
 
 - Source: eCFR Title 12
-- Version date: `2025-09-01`
-- Corpus granularity: official section parent documents plus structured chunks
-- Citation mode: fixed-snapshot URLs such as
-  `https://www.ecfr.gov/on/2025-09-01/title-12/section-217.134`
-
-This is not a real-time legal research system and is not legal advice.
-
-## What Works
-
-- Official Title 12 canonical corpus builder
-- Structured chunk builder
-- BGE Large + FAISS retrieval index
-- Citation-aware retrieval:
-  - explicit CFR section priority, for example `12 CFR 211.31`
-  - one-hop cross-reference expansion from an explicitly cited section
-- Read-only Python tools:
-  - `search_regulations`
-  - `fetch_section`
-- Minimal deterministic Agent Harness with max-step limits
-- Development-only retrieval and Agent validation reports
-- Markdown demo showing agent steps, evidence, fetched sections, and citations
-
-## Demo
-
-Run the deterministic Agent demo:
-
-```powershell
-cd legal-rag-agent
-pip install -e .[dev]
-$env:PYTHONPATH = "$PWD\src"
-python scripts\demo_title12_agent.py --device cpu
-```
-
-If a CUDA / PyTorch GPU environment is available:
-
-```powershell
-python scripts\demo_title12_agent.py --device cuda
-```
-
-The rendered report is:
+- Fixed version date: `2025-09-01`
+- Citation URL format:
 
 ```text
-reports/title12_agent_demo.md
-reports/title12_agent_demo_trace.json
+https://www.ecfr.gov/on/2025-09-01/title-12/section-217.134
 ```
 
-It shows two Development examples:
+This project is not a real-time legal research system and is not legal advice.
 
-- q001: explicit citation retrieval for `12 CFR 211.31`
-- q018: explicit citation retrieval for `12 CFR 217.135` plus cross-reference
-  expansion to `12 CFR 217.134`
+## Architecture
 
-No remote LLM is called by the demo.
+See:
 
-Note: the public repository does not include large local runtime assets such as
-the embedding model, FAISS index, or canonical corpus. The checked-in reports are
-curated outputs generated from those local assets.
+- `docs/architecture.md`
+- `docs/architecture_zh.md`
+- `docs/agent_system_plan_zh.md`
 
-## Validation
+High-level workflow:
 
-Agent loop validation:
-
-```powershell
-python scripts\validate_title12_agent.py --device cpu
+```text
+Question
+  |
+  v
+search_regulations
+  |
+  v
+fetch_section
+  |
+  v
+verify_citation
+  |
+  v
+LLM answer generation or deterministic fallback
+  |
+  v
+Final answer + citations + trace
 ```
 
-Tool validation:
-
-```powershell
-python scripts\validate_title12_tools.py --device cpu
-```
-
-Offline tests:
-
-```powershell
-$env:PYTHONPATH = "$PWD\src"
-python -m pytest -q -p no:cacheprovider
-```
-
-Latest local result: `112 passed`.
+The final citation list is generated by the system from verified sections. The model is instructed to use only those citations.
 
 ## Local Assets
 
-Large generated assets are intentionally not part of the public repository:
+Large generated assets are intentionally not committed:
 
-- local Python environments: `.venv/`, `.conda-gpu/`
-- FAISS indexes: `data/indexes/`
-- raw eCFR XML: `data/raw/`
-- generated canonical corpus and chunks: `data/canonical/`
-- alignment and recovered historical data: `data/alignment/`, `data/recovered/`
-- evaluation construction JSON files: `data/eval/*.json`
-- bulky JSON reports: `reports/*.json`
-- process-heavy Markdown notes are ignored by default; curated demo reports are kept
+- `.venv/`
+- `.conda-gpu/`
+- `models/`
+- `data/raw/`
+- `data/canonical/`
+- `data/indexes/`
+- `data/alignment/`
+- `data/recovered/`
+- `*.index`
+- `*.npy`
+- bulky generated JSON reports
 
-The embedding model, FAISS index, and canonical corpus are local runtime assets.
-Set their paths in scripts or config for your machine. A local model path might look
-like:
+The code assumes a local embedding model and FAISS index exist. In this workspace, the embedding model used for verification is:
 
 ```text
-path\to\bge-large-en-v1.5
+D:\pythonProject\rag_law\bge-large-en-v1.5
 ```
 
-The public repository is intended to contain source code, tests, lightweight
-documentation, and curated Markdown demo reports, not generated corpora or indexes.
+## Environment
 
-## Repository Contents
-
-- `src/rag_law/retriever.py`: FAISS retrieval and citation-aware context retrieval
-- `src/rag_law/tools.py`: read-only tool API
-- `src/rag_law/agent.py`: deterministic Agent Harness
-- `scripts/demo_title12_agent.py`: application-level markdown demo
-- `scripts/validate_title12_agent.py`: real Agent validation on Development examples
-- `scripts/validate_title12_tools.py`: real tool validation
-- `reports/title12_agent_demo.md`: generated demo report
-- `reports/title12_agent_demo_trace.json`: structured Agent execution trace sample
-
-## Security
-
-Remote LLM credentials must come from the process environment:
+Install dependencies:
 
 ```powershell
-$env:RAG_LAW_API_KEY = "your-key"
+cd D:\pythonProject\rag_law_clean
+D:\pythonProject\rag_law_clean\.venv\Scripts\python.exe -m pip install -r requirements.environment.txt
 ```
 
-No API key should be committed to source, YAML, Markdown, Dockerfiles, notebooks, or
-logs. The deterministic Agent demo does not require an API key.
+Set `PYTHONPATH`:
 
-## Current Limits
+```powershell
+$env:PYTHONPATH = "D:\pythonProject\rag_law_clean\src"
+```
 
-- The demo answer is template-based, not a final natural-language legal answer.
-- The Agent loop is deterministic; it does not yet use an LLM to choose tools.
-- Holdout retrieval has intentionally not been inspected during strategy design.
-- Citation verification and version comparison are not implemented yet.
-- The project is tied to the fixed `2025-09-01` snapshot and must not be presented
-  as current law.
+## Secrets
+
+Do not commit real API keys.
+
+Use `.env` locally and keep `.env.example` as the public template:
+
+```env
+JUDGE_API_KEY=
+JUDGE_BASE_URL=https://api.deepseek.com
+JUDGE_MODEL=deepseek-v4-pro
+
+ANSWER_BASE_URL=http://localhost:11434/v1
+ANSWER_MODEL=qwen2.5:7b-instruct
+ANSWER_API_KEY=ollama
+```
+
+Load `.env` in PowerShell:
+
+```powershell
+Get-Content .env | ForEach-Object {
+  if ($_ -and -not $_.StartsWith("#")) {
+    $name, $value = $_ -split "=", 2
+    Set-Item -Path "Env:$name" -Value $value
+  }
+}
+```
+
+`.env` is ignored by Git.
+
+## CLI Demo
+
+Run the Agent without LLM generation:
+
+```powershell
+$env:PYTHONPATH = "D:\pythonProject\rag_law_clean\src"
+
+D:\pythonProject\rag_law_clean\.venv\Scripts\python.exe `
+  D:\pythonProject\rag_law_clean\scripts\ask_agent.py `
+  "What does 12 CFR 211.31 apply to?" `
+  --device cpu `
+  --model D:\pythonProject\rag_law\bge-large-en-v1.5
+```
+
+Run with local Ollama LLM generation:
+
+```powershell
+$env:PYTHONPATH = "D:\pythonProject\rag_law_clean\src"
+
+D:\pythonProject\rag_law_clean\.venv\Scripts\python.exe `
+  D:\pythonProject\rag_law_clean\scripts\ask_agent.py `
+  "What does 12 CFR 211.31 apply to?" `
+  --device cpu `
+  --model D:\pythonProject\rag_law\bge-large-en-v1.5 `
+  --use-llm `
+  --llm-base-url http://localhost:11434/v1 `
+  --llm-model qwen2.5:7b-instruct `
+  --llm-api-key ollama
+```
+
+The CLI prints:
+
+- answer
+- citations
+- fetched sections
+- citation verification status
+- top evidence
+- termination reason
+- trace JSON path
+
+## LLM Answer Generation
+
+The default local answer model is:
+
+```text
+qwen2.5:7b-instruct via Ollama
+```
+
+The code uses an OpenAI-compatible chat-completions interface. You can replace Ollama with any compatible API by changing:
+
+```text
+--llm-base-url
+--llm-model
+--llm-api-key
+```
+
+If the LLM call fails, the Agent falls back to deterministic answer generation. The system-controlled citation list is preserved.
+
+## LLM-as-Judge Evaluation
+
+Run the LLM-as-Judge evaluation:
+
+```powershell
+cd D:\pythonProject\rag_law_clean
+
+Get-Content .env | ForEach-Object {
+  if ($_ -and -not $_.StartsWith("#")) {
+    $name, $value = $_ -split "=", 2
+    Set-Item -Path "Env:$name" -Value $value
+  }
+}
+
+$env:PYTHONPATH = "D:\pythonProject\rag_law_clean\src"
+
+D:\pythonProject\rag_law_clean\.venv\Scripts\python.exe `
+  D:\pythonProject\rag_law_clean\scripts\evaluate_title12_llm_judge.py `
+  --device cpu `
+  --model D:\pythonProject\rag_law\bge-large-en-v1.5 `
+  --judge-base-url $env:JUDGE_BASE_URL `
+  --judge-model $env:JUDGE_MODEL `
+  --judge-api-key-env JUDGE_API_KEY
+```
+
+Outputs:
+
+```text
+reports/title12_llm_judge_eval.json
+reports/title12_llm_judge_eval.md
+```
+
+Judge metrics:
+
+```text
+answer_relevance
+faithfulness
+citation_support
+legal_caution
+overall
+pass/fail
+issues
+```
+
+Important evaluation note:
+
+If the same model is used for answer generation and judging, the result should only be treated as a runnable evaluation loop. For a more credible quality signal, use an independent judge model. In this project, the recommended judge configuration is:
+
+```text
+answer model = qwen2.5:7b-instruct
+judge model  = deepseek-v4-pro
+```
+
+## FastAPI Service
+
+Start the API:
+
+```powershell
+cd D:\pythonProject\rag_law_clean
+
+$env:PYTHONPATH = "D:\pythonProject\rag_law_clean\src"
+$env:RAG_LAW_EMBEDDING_MODEL = "D:\pythonProject\rag_law\bge-large-en-v1.5"
+$env:RAG_LAW_USE_LLM = "true"
+
+D:\pythonProject\rag_law_clean\.venv\Scripts\python.exe `
+  -m uvicorn rag_law.api:app --host 127.0.0.1 --port 8000
+```
+
+Health check:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health
+```
+
+Ask:
+
+```powershell
+Invoke-RestMethod `
+  -Method Post `
+  -Uri http://127.0.0.1:8000/ask `
+  -ContentType "application/json" `
+  -Body '{"question":"What does 12 CFR 211.31 apply to?"}'
+```
+
+Trace:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/trace/<trace_id>
+```
+
+The API uses lazy Agent initialization, so importing `rag_law.api:app` does not immediately load the index and embedding model.
+
+## Evaluation Scripts
+
+Hybrid retrieval evaluation:
+
+```powershell
+$env:PYTHONPATH = "D:\pythonProject\rag_law_clean\src"
+
+D:\pythonProject\rag_law_clean\.venv\Scripts\python.exe `
+  D:\pythonProject\rag_law_clean\scripts\evaluate_title12_hybrid_retrieval.py `
+  --device cpu `
+  --model D:\pythonProject\rag_law\bge-large-en-v1.5
+```
+
+Agent process evaluation:
+
+```powershell
+$env:PYTHONPATH = "D:\pythonProject\rag_law_clean\src"
+
+D:\pythonProject\rag_law_clean\.venv\Scripts\python.exe `
+  D:\pythonProject\rag_law_clean\scripts\evaluate_title12_agent_process.py `
+  --device cpu `
+  --model D:\pythonProject\rag_law\bge-large-en-v1.5
+```
+
+## Tests
+
+Run all tests:
+
+```powershell
+$env:PYTHONPATH = "D:\pythonProject\rag_law_clean\src"
+D:\pythonProject\rag_law_clean\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider
+```
+
+Latest local result:
+
+```text
+154 passed
+```
+
+## Design Decisions
+
+- Fixed snapshot over live legal search
+- Verified citations over free-form model citations
+- Tool-based section retrieval over unbounded context stuffing
+- LLM answer composition after verification
+- Deterministic fallback when LLM fails
+- Evaluation split into retrieval, process, and answer-quality layers
+- FastAPI as a thin service wrapper over the same Agent core
+
+## Limitations
+
+- The public repository does not include the local eCFR corpus, FAISS index, or embedding model.
+- The evaluation set is intentionally small and should not be presented as broad legal QA generalization.
+- LLM-as-Judge is an auxiliary signal, not ground truth.
+- The system is tied to the fixed `2025-09-01` Title 12 snapshot.
+- The Agent workflow is deterministic; it does not yet use an LLM planner for tool selection.
+- This is not legal advice.
+
+## Roadmap
+
+Near-term:
+
+- Run formal LLM-as-Judge evaluation with `deepseek-v4-pro` during off-peak hours
+- Improve answer prompt if citation support or faithfulness remains low
+- Add stronger README/demo screenshots or sample outputs
+- Prepare resume and interview materials
+
+Deferred:
+
+- Full multi-agent role decomposition
+- Docker/cloud deployment
+- Frontend UI
+- Large manually curated evaluation set
+- Complex regulation version comparison
